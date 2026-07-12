@@ -79,6 +79,10 @@ export default function DocumentsPage() {
     }
   };
 
+  const handleDownloadOptimized = (docId: string) => {
+    window.open(`http://localhost:8000/api/download/${docId}`, "_blank");
+  };
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -169,6 +173,15 @@ export default function DocumentsPage() {
                       >
                         <Eye className="h-4.5 w-4.5" />
                       </button>
+                      {doc.status === "optimized" && (
+                        <button
+                          onClick={() => handleDownloadOptimized(doc.id)}
+                          className="inline-flex items-center p-2 text-optigreen-600 bg-optigreen-50 hover:bg-optigreen-100 rounded-xl transition-colors"
+                          title="Download Optimized PDF"
+                        >
+                          <Download className="h-4.5 w-4.5" />
+                        </button>
+                      )}
                       <button
                         onClick={() => handleDelete(doc.id)}
                         className="inline-flex items-center p-2 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors"
@@ -290,9 +303,7 @@ export default function DocumentsPage() {
               </button>
               {!reportLoading && report && (
                 <button
-                  onClick={() => {
-                    alert("This feature downloads the optimized compacted PDF. Our PDF compiler will generate this in the AI Engine!");
-                  }}
+                  onClick={() => handleDownloadOptimized(selectedDoc.id)}
                   className="bg-optigreen-600 hover:bg-optigreen-700 text-white px-5 py-2 rounded-xl text-sm font-semibold shadow-sm transition-colors flex items-center"
                 >
                   <Download className="h-4 w-4 mr-1.5" />

@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 
 from backend.config.settings import settings
 from backend.database.mongodb import connect_to_mongo, close_mongo_connection
-from backend.routes import auth, users, profile, upload, documents, dashboard
+from backend.routes import auth, users, profile, upload, documents, dashboard, optimization
 
 # Setup logging
 logging.basicConfig(
@@ -84,5 +84,6 @@ app.include_router(profile.router, prefix=settings.API_V1_STR)
 app.include_router(upload.router, prefix=settings.API_V1_STR)
 app.include_router(documents.router, prefix=settings.API_V1_STR)
 app.include_router(dashboard.router, prefix=settings.API_V1_STR)
+app.include_router(optimization.router, prefix=settings.API_V1_STR)
 
 logger.info("All modular routes included successfully.")
