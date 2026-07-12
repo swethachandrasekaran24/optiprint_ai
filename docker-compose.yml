@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  db:
+    image: mongo:6.0
+    container_name: optiprint_mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: optiprint_backend
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGODB_URL=mongodb://db:27017
+      - DATABASE_NAME=optiprint_ai
+      - JWT_SECRET_KEY=947c945b6db76092025ebae54ef861c83fc6e48da25df5d098e980f772ba65c2
+      - JWT_REFRESH_SECRET_KEY=a7a00f2878c5fb43a0889dbd16bf784bc13b0c36b6f7902cd962eb020ad613e5
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - REFRESH_TOKEN_EXPIRE_MINUTES=10080
+      - ALGORITHM=HS256
+      - UPLOAD_DIR=/app/uploads
+      - MAX_FILE_SIZE_MB=50
+    volumes:
+      - ./uploads:/app/uploads
+    depends_on:
+      - db
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: optiprint_frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api
+    depends_on:
+      - backend
+
+volumes:
+  mongodb_data:
