@@ -49,10 +49,15 @@ def test_full_optimization_pipeline_flow(client):
     token = login_data["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
-    # 2. Upload file
-    file_content = b"This is a mock assignment paper that has several unoptimized margin blocks and white spacing."
-    file_obj = io.BytesIO(file_content)
-    files = {"file": ("student_report.docx", file_obj, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")}
+    # 2. Create and upload valid docx file
+    import docx
+    doc = docx.Document()
+    doc.add_heading("OptiPrint Document", 0)
+    doc.add_paragraph("This is a mock assignment paper that has several unoptimized margin blocks and white spacing.")
+    file_stream = io.BytesIO()
+    doc.save(file_stream)
+    file_stream.seek(0)
+    files = {"file": ("student_report.docx", file_stream, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")}
 
     response = client.post("/api/upload", files=files, headers=headers)
     assert response.status_code == 201, response.text
@@ -103,8 +108,14 @@ def test_full_optimization_pipeline_flow(client):
     assert history[0]["purpose"] == "Research Paper"
     assert history[0]["mode"] == "Smart"
 
-    # 7. Download Optimized PDF File
+    # 7. Download Optimized DOCX File (since we uploaded a .docx)
     response = client.get(f"/api/download/{doc_id}", headers=headers)
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"] == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    assert len(response.content) > 0
+
+    # 8. Download Optimization PDF Report
+    response = client.get(f"/api/{doc_id}/report/pdf", headers=headers)
     assert response.status_code == 200, response.text
     assert response.headers["content-type"] == "application/pdf"
     assert len(response.content) > 0

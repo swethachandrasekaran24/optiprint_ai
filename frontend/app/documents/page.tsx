@@ -167,11 +167,18 @@ export default function DocumentsPage() {
                     </td>
                     <td className="px-6 py-4 text-right whitespace-nowrap space-x-2">
                       <button
+                        onClick={() => router.push(`/documents/${doc.id}/compare`)}
+                        className="inline-flex items-center p-2 text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-xl transition-colors"
+                        title="View before-vs-after comparison"
+                      >
+                        <Eye className="h-4.5 w-4.5" />
+                      </button>
+                      <button
                         onClick={() => handleViewReport(doc)}
                         className="inline-flex items-center p-2 text-optiblue-600 bg-optiblue-50 hover:bg-optiblue-100 rounded-xl transition-colors"
                         title="View optimization report"
                       >
-                        <Eye className="h-4.5 w-4.5" />
+                        <Info className="h-4.5 w-4.5" />
                       </button>
                       {doc.status === "optimized" && (
                         <button

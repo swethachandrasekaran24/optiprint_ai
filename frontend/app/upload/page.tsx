@@ -522,7 +522,14 @@ export default function UploadPage() {
                 className="w-full sm:w-auto inline-flex items-center justify-center bg-optiblue-600 hover:bg-optiblue-700 text-white font-bold px-8 py-3.5 rounded-xl shadow-lg shadow-optiblue-100 transition-colors text-sm"
               >
                 <FileText className="h-4 w-4 mr-1.5" />
-                <span>Download Optimized PDF</span>
+                <span>Download Optimized File</span>
+              </button>
+              <button
+                onClick={() => router.push(`/documents/${docId}/compare`)}
+                className="w-full sm:w-auto inline-flex items-center justify-center bg-amber-500 hover:bg-amber-600 text-white font-bold px-8 py-3.5 rounded-xl shadow-lg shadow-amber-100 transition-colors text-sm"
+              >
+                <Sliders className="h-4 w-4 mr-1.5" />
+                <span>Interactive Before vs After Comparison</span>
               </button>
               <button
                 onClick={resetForm}

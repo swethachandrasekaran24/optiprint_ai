@@ -18,6 +18,8 @@ from backend.ai_engine.optimizer import DocumentOptimizer
 from backend.services.activity import log_activity
 from backend.config.settings import settings
 
+logger = logging.getLogger("optiprint.routes.optimization")
+
 router = APIRouter(tags=["Document Optimization"])
 
 # Pydantic schemas for requests
@@ -205,10 +207,19 @@ async def download_optimized_file(document_id: str, current_user: UserOut = Depe
     if not opt_path or not os.path.exists(opt_path):
         raise HTTPException(status_code=400, detail="Optimized file is not ready or has been deleted.")
 
+    # Dynamically determine correct MIME media_type
+    file_type = doc.get("file_type", "pdf")
+    mime_types = {
+        "pdf": "application/pdf",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    }
+    media_type = mime_types.get(file_type, "application/octet-stream")
+
     return FileResponse(
         path=opt_path,
         filename=opt_filename or doc["filename"],
-        media_type="application/pdf"
+        media_type=media_type
     )
 
 # 4. Optimization Status
@@ -248,7 +259,129 @@ async def get_optimization_status(document_id: str, current_user: UserOut = Depe
         message=message
     )
 
-# 5. Optimization History
+# 5. Downloadable PDF Report
+@router.get("/{document_id}/report/pdf")
+async def download_pdf_report(document_id: str, current_user: UserOut = Depends(get_current_user)):
+    db = await get_database()
+
+    try:
+        doc = await db[DOCUMENT_COLLECTION].find_one({"_id": ObjectId(document_id), "user_id": str(current_user.id)})
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid Document ID format.")
+
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found or access denied.")
+
+    report = await db[REPORT_COLLECTION].find_one({"document_id": document_id, "user_id": str(current_user.id)})
+    if not report:
+        raise HTTPException(status_code=404, detail="Optimization report not found. Run optimization first.")
+
+    # Compile downloadable high-fidelity PDF report on the fly using ReportLab
+    report_filename = f"report_{document_id}.pdf"
+    report_path = os.path.join(settings.UPLOAD_DIR, report_filename)
+
+    try:
+        from reportlab.lib.pagesizes import letter
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib import colors
+        from reportlab.lib.units import inch
+
+        margin = 0.75 * inch
+        doc_template = SimpleDocTemplate(
+            report_path,
+            pagesize=letter,
+            rightMargin=margin,
+            leftMargin=margin,
+            topMargin=margin,
+            bottomMargin=margin
+        )
+
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            'ReportTitle',
+            parent=styles['Heading1'],
+            fontSize=18,
+            leading=22,
+            textColor=colors.HexColor("#0f172a"),
+            spaceAfter=15
+        )
+
+        subtitle_style = ParagraphStyle(
+            'ReportSub',
+            parent=styles['Normal'],
+            fontSize=10,
+            leading=14,
+            textColor=colors.HexColor("#475569"),
+            spaceAfter=20
+        )
+
+        bold_label = ParagraphStyle(
+            'BoldLabel',
+            parent=styles['Normal'],
+            fontSize=10,
+            leading=14,
+            textColor=colors.HexColor("#0f172a")
+        )
+
+        val_style = ParagraphStyle(
+            'ValStyle',
+            parent=styles['Normal'],
+            fontSize=10,
+            leading=14,
+            textColor=colors.HexColor("#334155")
+        )
+
+        story = []
+
+        # 1. Header Section
+        story.append(Paragraph("OptiPrint AI - Optimization Summary Report", title_style))
+        story.append(Paragraph(f"Document ID: {document_id} | Exported: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC", subtitle_style))
+        story.append(Spacer(1, 10))
+
+        # 2. Key Metrics Table
+        metrics = report.get("savings_metrics", {"pages_saved": 0, "money_saved": 0.0, "carbon_saved": 0.0})
+        table_data = [
+            [Paragraph("<b>Savings Metric</b>", bold_label), Paragraph("<b>Value Detected / Saved</b>", bold_label)],
+            [Paragraph("Original Page Count", bold_label), Paragraph(str(report.get("original_pages", 0)), val_style)],
+            [Paragraph("Optimized Page Count", bold_label), Paragraph(str(report.get("optimized_pages", 0)), val_style)],
+            [Paragraph("Pages Saved (Paper Offset)", bold_label), Paragraph(f"<b>{metrics.get('pages_saved', 0)} Pages</b>", val_style)],
+            [Paragraph("Estimated Money Saved", bold_label), Paragraph(f"<b>${metrics.get('money_saved', 0.0):.2f}</b>", val_style)],
+            [Paragraph("Carbon Offsets (g CO2)", bold_label), Paragraph(f"<b>{metrics.get('carbon_saved', 0.0):.1f} g</b>", val_style)],
+        ]
+
+        t = Table(table_data, colWidths=[3.0 * inch, 4.0 * inch])
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#f1f5f9")),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e1")),
+            ('TOPPADDING', (0,0), (-1,-1), 6),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ]))
+        story.append(t)
+        story.append(Spacer(1, 20))
+
+        # 3. Structural Modifications Summary
+        story.append(Paragraph("<b>Optimization Adjustments Conducted</b>", bold_label))
+        story.append(Spacer(1, 6))
+        story.append(Paragraph(report.get("content_changes_summary", "Reflow whitespace and gutters compaction."), val_style))
+        story.append(Spacer(1, 25))
+
+        # 4. Footer Compliance Check
+        story.append(Paragraph("<font color='#64748b' size='8'>This report was dynamically compiled by OptiPrint AI optimization models. Printing statistics reflect standard office toner and paper compliance metrics.</font>", subtitle_style))
+
+        doc_template.build(story)
+
+    except Exception as e:
+        logger.error(f"Failed to generate report PDF: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to synthesize report PDF.")
+
+    return FileResponse(
+        path=report_path,
+        filename=f"OptiPrint_Report_{doc['filename']}.pdf",
+        media_type="application/pdf"
+    )
+
+# 6. Optimization History
 @router.get("/history", response_model=List[Dict[str, Any]])
 async def get_optimization_history(current_user: UserOut = Depends(get_current_user)):
     db = await get_database()
